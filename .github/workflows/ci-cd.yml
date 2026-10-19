@@ -29,7 +29,8 @@ jobs:
           pip install pytest httpx
 
       - name: Run API tests
-        run: pytest backend/tests -v
+        working-directory: backend                        
+        run: pytest tests -v
 
   docker-build:
     name: Build Docker Images
