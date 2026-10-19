@@ -1,0 +1,30 @@
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# React / Node.js
+node_modules/
+dist/
+
+# Machine learning weights
+*.h5
+*.keras
+*.pt
+*.pth
+*.onnx
+
+# Logs and editors
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
