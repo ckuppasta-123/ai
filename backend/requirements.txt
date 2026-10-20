@@ -7,3 +7,5 @@ tensorflow
 transformers
 torch
 torchvision
+httpx
+pytest
