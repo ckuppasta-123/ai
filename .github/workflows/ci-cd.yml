@@ -30,8 +30,7 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade pip
-          python -m pip install fastapi "uvicorn[standard]" httpx pytest
+          python -m pip install fastapi "uvicorn[standard]" python-multipart httpx pytest
           
       - name: Run API tests
         working-directory: backend
