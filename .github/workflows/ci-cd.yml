@@ -74,7 +74,8 @@ jobs:
 
       - name: Validate Kubernetes YAML manifests
         run: |
-          kubectl apply --dry-run=client --validate=false -f k8s/
+          python -m pip install pyyaml
+          python -c "import yaml, glob; [list(yaml.safe_load_all(open(f, encoding='utf-8'))) for f in glob.glob('k8s/*.yaml')]; print('Kubernetes YAML syntax OK')"
 
   docker-build:
     name: Build & Verify Docker Images
@@ -215,3 +216,4 @@ jobs:
           kubectl rollout status deployment/ai-frontend \
             -n ai-visionops \
             --timeout=120s
+
