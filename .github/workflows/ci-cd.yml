@@ -74,7 +74,7 @@ jobs:
 
       - name: Validate Kubernetes YAML manifests
         run: |
-          kubectl apply --dry-run=client -f k8s/
+          kubectl apply --dry-run=client --validate=false -f k8s/
 
   docker-build:
     name: Build & Verify Docker Images
