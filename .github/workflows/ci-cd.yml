@@ -12,9 +12,6 @@ env:
   EKS_CLUSTER_NAME: ai-visionops-cluster
 
 jobs:
-  # -------------------------------------------------------------
-  # Job 1: Backend Automated Unit & API Testing
-  # -------------------------------------------------------------
   backend-tests:
     name: Backend Tests & Validation
     runs-on: ubuntu-latest
@@ -40,9 +37,6 @@ jobs:
           PYTHONPATH: .
         run: python -m pytest tests -v --tb=short
 
-  # -------------------------------------------------------------
-  # Job 2: Frontend Lint & Production Build Validation
-  # -------------------------------------------------------------
   frontend-validation:
     name: Frontend Lint & Build
     runs-on: ubuntu-latest
@@ -70,9 +64,6 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # -------------------------------------------------------------
-  # Job 3: Kubernetes Manifest Dry-Run Validation
-  # -------------------------------------------------------------
   k8s-validation:
     name: Kubernetes Manifest Validation
     runs-on: ubuntu-latest
@@ -85,9 +76,6 @@ jobs:
         run: |
           kubectl apply --dry-run=client -f k8s/
 
-  # -------------------------------------------------------------
-  # Job 4: Build Multi-Stage Docker Images
-  # -------------------------------------------------------------
   docker-build:
     name: Build & Verify Docker Images
     runs-on: ubuntu-latest
@@ -105,6 +93,7 @@ jobs:
         with:
           context: ./backend
           push: false
+          load: true
           tags: ai-visionops-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -114,13 +103,16 @@ jobs:
         with:
           context: ./frontend
           push: false
+          load: true
           tags: ai-visionops-frontend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # -------------------------------------------------------------
-  # Job 5: Deploy to AWS ECR and EKS (Optional / On-Approval)
-  # -------------------------------------------------------------
+      - name: Verify Docker images
+        run: |
+          docker image inspect ai-visionops-backend:${{ github.sha }}
+          docker image inspect ai-visionops-frontend:${{ github.sha }}
+
   deploy-aws:
     name: Deploy to AWS EKS
     runs-on: ubuntu-latest
@@ -137,10 +129,10 @@ jobs:
           AWS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
         run: |
           if [ -n "$AWS_KEY" ]; then
-            echo "has_creds=true" >> $GITHUB_OUTPUT
+            echo "has_creds=true" >> "$GITHUB_OUTPUT"
             echo "AWS credentials detected in GitHub Secrets."
           else
-            echo "has_creds=false" >> $GITHUB_OUTPUT
+            echo "has_creds=false" >> "$GITHUB_OUTPUT"
             echo "No AWS credentials detected. Skipping cloud rollout step."
           fi
 
@@ -157,20 +149,43 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Create ECR repositories
+        if: steps.check_aws.outputs.has_creds == 'true'
+        run: |
+          aws ecr describe-repositories \
+            --repository-names ai-visionops-backend \
+            --region "$AWS_REGION" >/dev/null 2>&1 || \
+          aws ecr create-repository \
+            --repository-name ai-visionops-backend \
+            --region "$AWS_REGION"
+
+          aws ecr describe-repositories \
+            --repository-names ai-visionops-frontend \
+            --region "$AWS_REGION" >/dev/null 2>&1 || \
+          aws ecr create-repository \
+            --repository-name ai-visionops-frontend \
+            --region "$AWS_REGION"
+
       - name: Push Images to Amazon ECR
         if: steps.check_aws.outputs.has_creds == 'true'
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          # Tag and push backend
-          docker tag ai-visionops-backend:${{ github.sha }} $REGISTRY/ai-visionops-backend:${{ github.sha }}
-          docker tag ai-visionops-backend:${{ github.sha }} $REGISTRY/ai-visionops-backend:latest
+          docker tag ai-visionops-backend:${{ github.sha }} \
+            $REGISTRY/ai-visionops-backend:${{ github.sha }}
+
+          docker tag ai-visionops-backend:${{ github.sha }} \
+            $REGISTRY/ai-visionops-backend:latest
+
           docker push $REGISTRY/ai-visionops-backend:${{ github.sha }}
           docker push $REGISTRY/ai-visionops-backend:latest
 
-          # Tag and push frontend
-          docker tag ai-visionops-frontend:${{ github.sha }} $REGISTRY/ai-visionops-frontend:${{ github.sha }}
-          docker tag ai-visionops-frontend:${{ github.sha }} $REGISTRY/ai-visionops-frontend:latest
+          docker tag ai-visionops-frontend:${{ github.sha }} \
+            $REGISTRY/ai-visionops-frontend:${{ github.sha }}
+
+          docker tag ai-visionops-frontend:${{ github.sha }} \
+            $REGISTRY/ai-visionops-frontend:latest
+
           docker push $REGISTRY/ai-visionops-frontend:${{ github.sha }}
           docker push $REGISTRY/ai-visionops-frontend:latest
 
@@ -181,12 +196,22 @@ jobs:
           CLUSTER: ${{ secrets.EKS_CLUSTER_NAME || env.EKS_CLUSTER_NAME }}
           REGION: ${{ secrets.AWS_REGION || env.AWS_REGION }}
         run: |
-          aws eks update-kubeconfig --name $CLUSTER --region $REGION
-          
-          # Update deployment image references to the ECR registry
-          sed -i "s|image: ai-backend:latest|image: $REGISTRY/ai-visionops-backend:${{ github.sha }}|g" k8s/backend-deployment.yaml
-          sed -i "s|image: ai-frontend:latest|image: $REGISTRY/ai-visionops-frontend:${{ github.sha }}|g" k8s/frontend-deployment.yaml
-          
+          aws eks update-kubeconfig \
+            --name "$CLUSTER" \
+            --region "$REGION"
+
+          sed -i "s|image: ai-backend:latest|image: $REGISTRY/ai-visionops-backend:${{ github.sha }}|g" \
+            k8s/backend-deployment.yaml
+
+          sed -i "s|image: ai-frontend:latest|image: $REGISTRY/ai-visionops-frontend:${{ github.sha }}|g" \
+            k8s/frontend-deployment.yaml
+
           kubectl apply -f k8s/
-          kubectl rollout status deployment/ai-backend -n ai-visionops --timeout=180s
-          kubectl rollout status deployment/ai-frontend -n ai-visionops --timeout=120s
+
+          kubectl rollout status deployment/ai-backend \
+            -n ai-visionops \
+            --timeout=180s
+
+          kubectl rollout status deployment/ai-frontend \
+            -n ai-visionops \
+            --timeout=120s
