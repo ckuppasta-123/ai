@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-backend
+  namespace: ai-visionops
+  labels:
+    app: ai-backend
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-backend
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: ai-backend
+        app.kubernetes.io/component: backend
+    spec:
+      containers:
+        - name: backend
+          image: ai-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: HF_HOME
+              value: "/app/model-cache/huggingface"
+            - name: KERAS_HOME
+              value: "/app/model-cache/keras"
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "600Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1400Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          volumeMounts:
+            - name: model-cache-volume
+              mountPath: /app/model-cache
+      volumes:
+        - name: model-cache-volume
+          emptyDir: {}

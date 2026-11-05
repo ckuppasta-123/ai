@@ -1,17 +1,57 @@
-
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: ai-visionops-api
     ports:
       - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/model-cache/huggingface
+      - KERAS_HOME=/app/model-cache/keras
+    volumes:
+      - model-cache:/app/model-cache
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1500M
+        reservations:
+          memory: 600M
+    mem_limit: 1500m
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: ai-visionops-frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
+    mem_limit: 128m
     restart: unless-stopped
+
+volumes:
+  model-cache:
+    name: ai-visionops-model-cache

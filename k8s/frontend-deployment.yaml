@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-frontend
+  namespace: ai-visionops
+  labels:
+    app: ai-frontend
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-frontend
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ai-frontend
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ai-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

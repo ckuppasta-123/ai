@@ -1,10 +1,10 @@
-
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    HF_HOME=/app/model-cache \
+    HF_HOME=/app/model-cache/huggingface \
+    KERAS_HOME=/app/model-cache/keras \
     TF_CPP_MIN_LOG_LEVEL=2
 
 WORKDIR /app
@@ -12,11 +12,12 @@ WORKDIR /app
 # Install only the OS utilities required by Python packages.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
-# Install CPU-based PyTorch first to avoid pulling CUDA packages.
+# Install CPU-based PyTorch and CPU-based TensorFlow to minimize memory & image size
 RUN python -m pip install --upgrade pip && \
     python -m pip install --no-cache-dir \
       torch torchvision \
@@ -27,14 +28,14 @@ RUN python -m pip install --upgrade pip && \
       python-multipart \
       pillow \
       numpy \
-      tensorflow \
+      tensorflow-cpu \
       transformers
 
 COPY app ./app
 
-# Create a non-root user for safer runtime execution.
+# Create a non-root user for safer runtime execution and ensure cache directory permissions
 RUN useradd --create-home --uid 10001 appuser && \
-    mkdir -p /app/model-cache && \
+    mkdir -p /app/model-cache/huggingface /app/model-cache/keras && \
     chown -R appuser:appuser /app
 
 USER appuser

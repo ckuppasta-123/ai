@@ -17,7 +17,7 @@ import {
 
 import "./App.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 function App() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -38,32 +38,32 @@ function App() {
 
   const [modelInfo, setModelInfo] = useState(null);
 
-  useEffect(() => {
-    checkBackend();
+  const checkBackend = async () => {
+    try {
+      const healthResponse = await fetch(`${API_BASE_URL}/health`);
+      const readyResponse = await fetch(`${API_BASE_URL}/ready`);
+      const modelResponse = await fetch(`${API_BASE_URL}/model-info`);
+
+      if (!healthResponse.ok) {
+        throw new Error("Backend unavailable");
+      }
+
+      const readyData = await readyResponse.json();
+      const modelData = await modelResponse.json();
+
+      setApiStatus("online");
+      setModelsReady(readyData.status === "ready");
+      setModelInfo(modelData);
+    } catch (error) {
+      console.error(error);
+      setApiStatus("offline");
+      setModelsReady(false);
+    }
+  };
+
+  useEffect(() => {
+    checkBackend();
   }, []);
-
-  const checkBackend = async () => {
-    try {
-      const healthResponse = await fetch(`${API_BASE_URL}/health`);
-      const readyResponse = await fetch(`${API_BASE_URL}/ready`);
-      const modelResponse = await fetch(`${API_BASE_URL}/model-info`);
-
-      if (!healthResponse.ok) {
-        throw new Error("Backend unavailable");
-      }
-
-      const readyData = await readyResponse.json();
-      const modelData = await modelResponse.json();
-
-      setApiStatus("online");
-      setModelsReady(readyData.status === "ready");
-      setModelInfo(modelData);
-    } catch (error) {
-      console.error(error);
-      setApiStatus("offline");
-      setModelsReady(false);
-    }
-  };
 
   const handleImageChange = (event) => {
     const file = event.target.files?.[0];
@@ -388,15 +388,15 @@ function App() {
                   </span>
                 </div>
 
-                <h4>DistilBERT</h4>
-
-                <p>
-                  Transformer model optimized for sentiment classification.
-                </p>
-
-                <div className="model-meta">
-                  <span>CPU</span>
-                  <span>SST-2</span>
+                <h4>{modelInfo?.text_model?.architecture || "RoBERTa"}</h4>
+
+                <p>
+                  {modelInfo?.text_model?.name || "Transformer model optimized for sentiment classification."}
+                </p>
+
+                <div className="model-meta">
+                  <span>{modelInfo?.text_model?.device || "CPU"}</span>
+                  <span>{modelInfo?.text_model?.classes?.length ? `${modelInfo.text_model.classes.length} Classes` : "3 Classes"}</span>
                 </div>
               </div>
             </div>

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-visionops
+  labels:
+    app.kubernetes.io/name: ai-visionops
+    app.kubernetes.io/part-of: ai-visionops-platform
